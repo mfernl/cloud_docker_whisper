@@ -38,7 +38,7 @@ warnings.simplefilter(action="ignore",category=FutureWarning)
 
 
 clave = subprocess.run(["openssl", "rand", "-hex", "32"], capture_output=True)  #cada vez que se inicia el servidor se crea una clave
-LOAD_MODEL = "turbo"
+LOAD_MODEL = "base"
 SECRET_KEY = clave.stdout.decode("utf-8").strip() #stdout es la salida del comando en shell, y strip se usa para quitar el \n final
 TOKEN_EXP_SECS = 86400
 RTSESSION_EXP = 3600
@@ -47,12 +47,19 @@ CONNECTED_CLIENTS = 0
 QUERIES_RECEIVED = 0
 FILE_TRANSCRIPTIONS = 0
 TIME_SPENT_TRANSCRIPTING = timedelta()
-MODELS = [whisper.load_model(LOAD_MODEL, device="cuda") for _ in range(3)] #3 modelos para upload ya que son archivos grandes y uno para RT
-MODEL_TURBO_RT = whisper.load_model(LOAD_MODEL, device="cuda")
+
+DEVICE = "cpu"
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+
+MODELS = [whisper.load_model(LOAD_MODEL, device=DEVICE) for _ in range(3)] #3 modelos para upload ya que son archivos grandes y uno para RT
+MODEL_TURBO_RT = whisper.load_model(LOAD_MODEL, device=DEVICE)
 IWORDS_CACHE = []
 IWORDS_LOCK = threading.Lock()
 
-upload_streams = [torch.cuda.Stream() for _ in range(3)] #Flujos cuda separados
+upload_streams = None
+if torch.cuda.is_available():
+    upload_streams = [torch.cuda.Stream() for _ in range(3)] #Flujos cuda separados
 
 revoked_tokens = set()
 
@@ -436,9 +443,10 @@ def es_segmento_valido(segment):
         0.4 <= segment["compression_ratio"] <= 2.4
     )
 
-for i in range(3):
-    thread = Thread(target=transcription_worker, args=(MODELS[i], upload_streams[i]), daemon=True)
-    thread.start()
+if torch.cuda.is_available():
+    for i in range(3):
+        thread = Thread(target=transcription_worker, args=(MODELS[i], upload_streams[i]), daemon=True)
+        thread.start()
 
 
 async def generar_transcripcion(nombre,input_dir):
@@ -465,14 +473,14 @@ async def generar_transcripcion_RT(nombre,input_dir):
             if es_segmento_valido(segment):     
                 #print(f"\n ################################################## \n {segment} \n ################################################## \n") 
                 content_w_timestamps.append({
-                    "start": f"{segment["start"]:.2f}",
-                    "end": f"{segment["end"]:.2f}",
-                    "text": segment["text"].strip()
+                    "start": f"{segment['start']:.2f}",
+                    "end": f"{segment['end']:.2f}",
+                    "text": segment['text'].strip()
                 })
             else:
                 content_w_timestamps.append({
-                    "start": f"{segment["start"]:.2f}",
-                    "end": f"{segment["end"]:.2f}",
+                    "start": f"{segment['start']:.2f}",
+                    "end": f"{segment['end']:.2f}",
                     "text": "..."
                 })
     return content_w_timestamps

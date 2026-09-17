@@ -8,11 +8,19 @@
 # database or a cache. For examples, see the Awesome Compose repository:
 # https://github.com/docker/awesome-compose
 services:
-  server:
+  server_fastAPI:
     build:
       context: .
+    image: test-compose-whisper
     ports:
       - 8000:8000
+    container_name: whisper-docker
+    volumes: 
+      - .:/app #bind mount to my app folder
+      - whisper-cache:/user_home/.cache/whisper
+
+volumes:
+  whisper-cache:
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to

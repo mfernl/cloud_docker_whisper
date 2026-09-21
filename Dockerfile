@@ -39,9 +39,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 USER appuser
 
+RUN mkdir -p /user_home/user_cache/whisper
+
 COPY . .
 
 EXPOSE 8000
 
 # exec format for better performance
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]

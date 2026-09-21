@@ -52,12 +52,12 @@ DEVICE = "cpu"
 if torch.cuda.is_available():
     DEVICE = "cuda"
 
-MODELS = [whisper.load_model(LOAD_MODEL, device=DEVICE) for _ in range(3)] #3 modelos para upload ya que son archivos grandes y uno para RT
-MODEL_TURBO_RT = whisper.load_model(LOAD_MODEL, device=DEVICE)
+MODELS = [whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper") for _ in range(3)] #3 modelos para upload ya que son archivos grandes y uno para RT
+MODEL_TURBO_RT = whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper")
 IWORDS_CACHE = []
 IWORDS_LOCK = threading.Lock()
 
-upload_streams = None
+#upload_streams = None
 if torch.cuda.is_available():
     upload_streams = [torch.cuda.Stream() for _ in range(3)] #Flujos cuda separados
 
@@ -406,32 +406,32 @@ async def upload_archivo(uploaded_file: UploadFile, access_token: str, iWordDete
 
 
     
-def transcription_worker(model,stream):
+def transcription_worker(model):
     while True:
         task = transcription_queue.get()
         if task is None:
             break  # Salir si la cola cierra
         path_archivo, response_queue = task  # Extraer datos
 
-        with torch.cuda.stream(stream):  # Asegurar flujo CUDA separado
-            result = model.transcribe(path_archivo,verbose=False,language="es")
-            #print(result)
-            content_w_timestamps = []
-            for segment in result["segments"]:
-                #print(f"\n {segment}")
-                if es_segmento_valido(segment):
-                    
-                    content_w_timestamps.append({
-                        "start": f"{segment['start']:.2f}",
-                        "end": f"{segment['end']:.2f}",
-                        "text": segment['text'].strip()
-                    })
-                else:
-                    content_w_timestamps.append({
-                        "start": f"{segment['start']:.2f}",
-                        "end": f"{segment['end']:.2f}",
-                        "text": '...'
-                    })
+        #with torch.cuda.stream(stream): Asegurar flujo CUDA separado
+        result = model.transcribe(path_archivo,verbose=False,language="es")
+        #print(result)
+        content_w_timestamps = []
+        for segment in result["segments"]:
+            #print(f"\n {segment}")
+            if es_segmento_valido(segment):
+                
+                content_w_timestamps.append({
+                    "start": f"{segment['start']:.2f}",
+                    "end": f"{segment['end']:.2f}",
+                    "text": segment['text'].strip()
+                })
+            else:
+                content_w_timestamps.append({
+                    "start": f"{segment['start']:.2f}",
+                    "end": f"{segment['end']:.2f}",
+                    "text": '...'
+                })
                     
         response_queue.put(content_w_timestamps)  # Enviar resultado de vuelta
         transcription_queue.task_done()
@@ -443,10 +443,9 @@ def es_segmento_valido(segment):
         0.4 <= segment["compression_ratio"] <= 2.4
     )
 
-if torch.cuda.is_available():
-    for i in range(3):
-        thread = Thread(target=transcription_worker, args=(MODELS[i], upload_streams[i]), daemon=True)
-        thread.start()
+for i in range(3):
+    thread = Thread(target=transcription_worker, args=([MODELS[i]]), daemon=True)
+    thread.start()
 
 
 async def generar_transcripcion(nombre,input_dir):
@@ -464,25 +463,25 @@ async def generar_transcripcion(nombre,input_dir):
 
 async def generar_transcripcion_RT(nombre,input_dir):
 
-    with torch.cuda.stream(torch.cuda.Stream()):  # Flujo separado
-        print(f"usando model: {LOAD_MODEL}")
-        path_archivo = os.path.join(input_dir,nombre)
-        result = MODEL_TURBO_RT.transcribe(path_archivo,verbose=False,language="es")
-        content_w_timestamps = []
-        for segment in result["segments"]:
-            if es_segmento_valido(segment):     
-                #print(f"\n ################################################## \n {segment} \n ################################################## \n") 
-                content_w_timestamps.append({
-                    "start": f"{segment['start']:.2f}",
-                    "end": f"{segment['end']:.2f}",
-                    "text": segment['text'].strip()
-                })
-            else:
-                content_w_timestamps.append({
-                    "start": f"{segment['start']:.2f}",
-                    "end": f"{segment['end']:.2f}",
-                    "text": "..."
-                })
+    #with torch.cuda.stream(torch.cuda.Stream()):  Flujo separado
+    print(f"usando model: {LOAD_MODEL}")
+    path_archivo = os.path.join(input_dir,nombre)
+    result = MODEL_TURBO_RT.transcribe(path_archivo,verbose=False,language="es")
+    content_w_timestamps = []
+    for segment in result["segments"]:
+        if es_segmento_valido(segment):     
+            #print(f"\n ################################################## \n {segment} \n ################################################## \n") 
+            content_w_timestamps.append({
+                "start": f"{segment['start']:.2f}",
+                "end": f"{segment['end']:.2f}",
+                "text": segment['text'].strip()
+            })
+        else:
+            content_w_timestamps.append({
+                "start": f"{segment['start']:.2f}",
+                "end": f"{segment['end']:.2f}",
+                "text": "..."
+            })
     return content_w_timestamps
     
 

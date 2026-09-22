@@ -54,6 +54,11 @@ MODEL = whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home
 IWORDS_CACHE = []
 IWORDS_LOCK = threading.Lock()
 
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+USER_USERNAME = os.getenv("USER_USERNAME")
+USER_PASSWORD = os.getenv("USER_PASSWORD")
+
 revoked_tokens = set()
 
 server_start_time = datetime.now()
@@ -70,13 +75,13 @@ async def lifespan(app: FastAPI):
     load_iwords(db)
     existingAdmin = db.query(Admin).filter_by(username = "admin").first()
     if not existingAdmin:
-        new_admin = Admin(username = "admin", password = hash_password("12345"))
+        new_admin = Admin(username = ADMIN_USERNAME, password = hash_password(ADMIN_PASSWORD))
         db.add(new_admin)
         db.commit()
         db.close()
     existingUser = db.query(User).filter_by(username = "articuno").first()
     if not existingUser:
-        new_user = User(username = "articuno", password = hash_password("12345"))
+        new_user = User(username = USER_USERNAME, password = hash_password(USER_PASSWORD))
         db.add(new_user)
         db.commit()
         db.close()

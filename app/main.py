@@ -38,7 +38,7 @@ warnings.simplefilter(action="ignore",category=FutureWarning)
 
 
 clave = subprocess.run(["openssl", "rand", "-hex", "32"], capture_output=True)  #cada vez que se inicia el servidor se crea una clave
-LOAD_MODEL = "base"
+LOAD_MODEL = "small"
 SECRET_KEY = clave.stdout.decode("utf-8").strip() #stdout es la salida del comando en shell, y strip se usa para quitar el \n final
 TOKEN_EXP_SECS = 86400
 RTSESSION_EXP = 3600
@@ -49,10 +49,13 @@ FILE_TRANSCRIPTIONS = 0
 TIME_SPENT_TRANSCRIPTING = timedelta()
 
 DEVICE = "cpu"
+QUEUE = 1
 if torch.cuda.is_available():
+    print("[MAIN]: cuda device available, device: {DEVICE}, queue: {QUEUE}")
     DEVICE = "cuda"
+    QUEUE = 3
 
-MODELS = [whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper") for _ in range(3)] #3 modelos para upload ya que son archivos grandes y uno para RT
+MODELS = [whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper") for _ in range(QUEUE)] #3 modelos para upload ya que son archivos grandes y uno para RT
 MODEL_TURBO_RT = whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper")
 IWORDS_CACHE = []
 IWORDS_LOCK = threading.Lock()
@@ -443,7 +446,7 @@ def es_segmento_valido(segment):
         0.4 <= segment["compression_ratio"] <= 2.4
     )
 
-for i in range(3):
+for i in range(QUEUE):
     thread = Thread(target=transcription_worker, args=([MODELS[i]]), daemon=True)
     thread.start()
 

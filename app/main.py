@@ -49,20 +49,10 @@ FILE_TRANSCRIPTIONS = 0
 TIME_SPENT_TRANSCRIPTING = timedelta()
 
 DEVICE = "cpu"
-QUEUE = 1
-if torch.cuda.is_available():
-    print("[MAIN]: cuda device available, device: {DEVICE}, queue: {QUEUE}")
-    DEVICE = "cuda"
-    QUEUE = 3
 
-MODELS = [whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper") for _ in range(QUEUE)] #3 modelos para upload ya que son archivos grandes y uno para RT
-MODEL_TURBO_RT = whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper")
+MODEL = whisper.load_model(LOAD_MODEL, device=DEVICE, download_root= "/user_home/user_cache/whisper")
 IWORDS_CACHE = []
 IWORDS_LOCK = threading.Lock()
-
-#upload_streams = None
-if torch.cuda.is_available():
-    upload_streams = [torch.cuda.Stream() for _ in range(3)] #Flujos cuda separados
 
 revoked_tokens = set()
 
@@ -70,7 +60,7 @@ server_start_time = datetime.now()
 
 sesiones = {}
 
-transcription_queue = Queue() #cola para manejar los tres modelos turbo
+transcription_queue = Queue() #cola para manejar todas las peticiones
 
 Base.metadata.create_all(bind=engine)
 
@@ -268,7 +258,7 @@ async def transcript_chunk(access_token, RTsession_id, uploaded_file: UploadFile
 
     audio = await save_temp_audio(wav_buffer.getvalue(),RT_DIR)
     try:
-        out = await generar_transcripcion_RT(audio,RT_DIR)
+        out = await generar_transcripcion(audio,RT_DIR)
         sesiones[RTsession_id]["transcription"].append(out)
         path_archivo = os.path.join(RT_DIR,audio)
     finally:
@@ -446,9 +436,9 @@ def es_segmento_valido(segment):
         0.4 <= segment["compression_ratio"] <= 2.4
     )
 
-for i in range(QUEUE):
-    thread = Thread(target=transcription_worker, args=([MODELS[i]]), daemon=True)
-    thread.start()
+#one model for everything
+thread = Thread(target=transcription_worker, args=([MODEL]), daemon=True)
+thread.start()
 
 
 async def generar_transcripcion(nombre,input_dir):
@@ -464,12 +454,12 @@ async def generar_transcripcion(nombre,input_dir):
     
 
 
-async def generar_transcripcion_RT(nombre,input_dir):
+""" async def generar_transcripcion_RT(nombre,input_dir):
 
     #with torch.cuda.stream(torch.cuda.Stream()):  Flujo separado
     print(f"usando model: {LOAD_MODEL}")
     path_archivo = os.path.join(input_dir,nombre)
-    result = MODEL_TURBO_RT.transcribe(path_archivo,verbose=False,language="es")
+    result = MODEL_TURBO.transcribe(path_archivo,verbose=False,language="es")
     content_w_timestamps = []
     for segment in result["segments"]:
         if es_segmento_valido(segment):     
@@ -485,7 +475,7 @@ async def generar_transcripcion_RT(nombre,input_dir):
                 "end": f"{segment['end']:.2f}",
                 "text": "..."
             })
-    return content_w_timestamps
+    return content_w_timestamps """
     
 
 @app.post("/register")

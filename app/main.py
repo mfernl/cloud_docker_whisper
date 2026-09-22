@@ -38,7 +38,7 @@ warnings.simplefilter(action="ignore",category=FutureWarning)
 
 
 clave = subprocess.run(["openssl", "rand", "-hex", "32"], capture_output=True)  #cada vez que se inicia el servidor se crea una clave
-LOAD_MODEL = "small"
+LOAD_MODEL = "tiny"
 SECRET_KEY = clave.stdout.decode("utf-8").strip() #stdout es la salida del comando en shell, y strip se usa para quitar el \n final
 TOKEN_EXP_SECS = 86400
 RTSESSION_EXP = 3600
